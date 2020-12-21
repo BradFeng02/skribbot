@@ -1,0 +1,15 @@
+{
+    "manifest_version": 2,
+    "name": "Brad's Skribbl.io Bot",
+    "description": "made during quarantine",
+    "version": "6.9",
+    "permissions": ["webRequest", "ws://*/*", "wss://*/*"],
+    "content_scripts": [
+        {
+          "matches": ["https://skribbl.io/*"],
+          "js": ["main.js"],
+          "run_at": "document_start"
+        }
+    ],
+    "web_accessible_resources": ["opencv.js", "best_colors.txt"]
+}
