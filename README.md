@@ -15,6 +15,8 @@ Its much better now, with the search built in and everything is easy to use. Its
 I haven't had time to finish the extension yet, but i just have to implement what i did in python in the extension, since I'm still happy with the draw contours + fill the rest approach.
 In the future if I can get the bot to draw fast enough, maybe i'll go for "subpixel rendering" (lol) where i get more resolution that the smallest brush size allows by overlapping lines. That probably wont happen though, since I think i've already hit the speed limit and it's still the bottleneck.
 
+sidenote: the img server folder is for a node.js server that lets me use images that have strict cors policies without relying on a public proxy which ends up rate-limiting me.(its called CORS anywhere). You have to run the server on your computer. I'm sure theres a way to build this into the extension, but I just to get on with the rest of the extension with this server as a temporary setup.
+
 its fun and i got to learn javascript
 
 i'm just dumping projects to github right now
