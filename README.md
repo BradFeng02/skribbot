@@ -1,6 +1,6 @@
 
 
-This was a small quarantine project so I didn't really care about how jury-rigged and delicate everything was at the time
+This was a small quarantine project so I didn't really care about how hacky and delicate everything was at the time
 
 copied from master readme:
 
