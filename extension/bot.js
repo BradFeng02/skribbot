@@ -75,6 +75,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // imgsearch.setAttribute('data-image_as_filetype','png');
     imgsearch.className = 'gcse-search';
 
+    //best colors
+    window.colorcode = [20, -1, 21, 3, 4, 5, 7, 9, 14, 11, 13, 15, -1, -1, 16, 18, 0, 6, 1, 8, 12, -1, 2, 19, 10, 17];
+
+    function bestColor(r, g, b) {
+        return colorcode[best_colors[((r & 0x0ff) << 16) | ((g & 0x0ff) << 8) | (b & 0x0ff)].charCodeAt() - 97];
+    }
+    window.bestColor = bestColor;
+
     //store images
     var droppedimg = document.createElement('img');
     document.body.appendChild(droppedimg);
@@ -89,25 +97,43 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dropRegion.style.display = 'none';
         dragRegion.style.display = 'none';
 
-        //processes image
-        const wid = 80 * 2;
-        const hgt = 60 * 2;
-        var mat = cv.imread(droppedimg);
-        cv.cvtColor(mat, mat, cv.COLOR_BGRA2BGR);
-        var r = mat.rows / mat.cols;
-        if (r > 0.75) { // hgt/wid=0.75
-            cv.resize(mat, mat, new cv.Size(Math.round(hgt / r), hgt), 0, 0, cv.INTER_LANCZOS4)
-        } else {
-            cv.resize(mat, mat, new cv.Size(wid, Math.round(wid * r)), 0, 0, cv.INTER_LANCZOS4)
-        }
-        const imw = mat.cols;
-        const imh = mat.rows;
+        //process image
+        const MAX_WID = 80 * 2;
+        const MAX_HGT = 60 * 2;
 
-        // console.log(mat.type());
-        // console.log(mat.data);
+        var src = cv.imread(droppedimg);
+        cv.cvtColor(src, src, cv.COLOR_BGRA2BGR);
+
+        var r = src.rows / src.cols;
+        if (r > MAX_HGT / MAX_WID) { // hgt/wid=0.75
+            cv.resize(src, src, new cv.Size(Math.round(MAX_HGT / r), MAX_HGT), 0, 0, cv.INTER_LANCZOS4)
+        } else {
+            cv.resize(src, src, new cv.Size(MAX_WID, Math.round(MAX_WID * r)), 0, 0, cv.INTER_LANCZOS4)
+        }
+        const imw = src.cols;
+        const imh = src.rows;
+
+        //create threshed mats
+        let mats = new Array(22);
+        for (var i = 0; i < 22; ++i) {
+            //mats[i] = new Array(imw * imh);
+            mats[i] = cv.Mat.zeros(imh, imw, cv.CV_8UC1);
+        }
+        for (var x = 0; x < imw; ++x) {
+            for (var y = 0; y < imh; ++y) {
+                let r = src.data[x * imw * 3 + y * 3];
+                let g = src.data[x * imw * 3 + y * 3 + 1];
+                let b = src.data[x * imw * 3 + y * 3 + 2];
+                mats[bestColor(r, g, b)].data[x * imw + y] = 255;
+            }
+        }
 
         //draw image
         // const maxlen = 7;
+
+        for (var c = 0; c < 22; ++c) {
+
+        }
 
 
 
@@ -136,7 +162,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         // sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
 
         //clean up
-        mat.delete();
+        src.delete();
     }
 
     //dragndrop setup
