@@ -98,42 +98,120 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dragRegion.style.display = 'none';
 
         //process image
-        const MAX_WID = 80 * 2;
-        const MAX_HGT = 60 * 2;
+        const scale = 4;
+        const psize = 2; //for drawing
+        const filldist = 3; //distance from top left of contour to fill
+        const MAX_WID = 80 * scale;
+        const MAX_HGT = 60 * scale;
 
         var src = cv.imread(droppedimg);
+
+
+        if (src.type = cv.CV_8UC4) {
+            for (let x = 0; x < src.cols; ++x) {
+                for (let y = 0; y < src.rows; ++y) {
+
+                    if (src.data[y * src.cols * 4 + x * 4 + 3] == 0) {
+                        src.data[y * src.cols * 4 + x * 4] = 255;
+                        src.data[y * src.cols * 4 + x * 4 + 1] = 255;
+                        src.data[y * src.cols * 4 + x * 4 + 2] = 255;
+                    }
+                }
+            }
+        }
+
         cv.cvtColor(src, src, cv.COLOR_BGRA2BGR);
+
 
         var r = src.rows / src.cols;
         if (r > MAX_HGT / MAX_WID) { // hgt/wid=0.75
-            cv.resize(src, src, new cv.Size(Math.round(MAX_HGT / r), MAX_HGT), 0, 0, cv.INTER_LANCZOS4)
+            cv.resize(src, src, new cv.Size(Math.round(MAX_HGT / r), MAX_HGT), 0, 0, cv.INTER_LANCZOS4); //INTER_AREA
         } else {
-            cv.resize(src, src, new cv.Size(MAX_WID, Math.round(MAX_WID * r)), 0, 0, cv.INTER_LANCZOS4)
+            cv.resize(src, src, new cv.Size(MAX_WID, Math.round(MAX_WID * r)), 0, 0, cv.INTER_LANCZOS4);
         }
         const imw = src.cols;
         const imh = src.rows;
 
         //create threshed mats
         let mats = new Array(22);
-        for (var i = 0; i < 22; ++i) {
-            //mats[i] = new Array(imw * imh);
+        for (let i = 0; i < 22; ++i) {
             mats[i] = cv.Mat.zeros(imh, imw, cv.CV_8UC1);
         }
-        for (var x = 0; x < imw; ++x) {
-            for (var y = 0; y < imh; ++y) {
-                let r = src.data[x * imw * 3 + y * 3];
-                let g = src.data[x * imw * 3 + y * 3 + 1];
-                let b = src.data[x * imw * 3 + y * 3 + 2];
-                mats[bestColor(r, g, b)].data[x * imw + y] = 255;
+        let usedcolors = new Set();
+        for (let x = 0; x < imw; ++x) {
+            for (let y = 0; y < imh; ++y) {
+                let r = src.data[y * imw * 3 + x * 3];
+                let g = src.data[y * imw * 3 + x * 3 + 1];
+                let b = src.data[y * imw * 3 + x * 3 + 2];
+                bc = bestColor(r, g, b);
+                usedcolors.add(bc);
+                mats[bc].data[y * imw + x] = 255;
             }
         }
 
         //draw image
         // const maxlen = 7;
 
-        for (var c = 0; c < 22; ++c) {
+        //loops back to white once in case it was filled
+        for (let k = 0; k <= 22; ++k) {
+            let c = k % 22;
+            if (usedcolors.has(c)) {
+                let contours = new cv.MatVector();
+                let h = new cv.Mat();
+                cv.findContours(mats[c], contours, h, cv.RETR_TREE, cv.CHAIN_APPROX_TC89_KCOS);
 
+                for (let i = 0; i < contours.size(); ++i) {
+                    const cont = contours.get(i);
+                    if (cv.contourArea(cont) < 7) continue;
+
+                    let drawpayload = '42["drawCommands",[';
+
+                    let x = cont.data32S[0];
+                    let y = cont.data32S[1];
+                    let fillx = new Array();
+                    let filly = new Array();
+
+                    for (let j = 0; j < cont.data32S.length - 2; j += 2) {
+                        //check if should fill here
+                        if (y >= filldist && x >= filldist && mats[c].data[(y - filldist) * imw + x] == 255 && mats[c].data[y * imw + x - filldist] == 255) {
+                            fillx.push(x);
+                            filly.push(y);
+                        }
+
+                        nextx = cont.data32S[j + 2];
+                        nexty = cont.data32S[j + 3];
+                        drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + nextx * psize + ',' + nexty * psize + '],';
+
+                        x = nextx;
+                        y = nexty;
+                    }
+
+                    drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + cont.data32S[0] * psize + ',' + cont.data32S[1] * psize + '],';
+
+                    const d = 2;
+                    for (let p = 0; p < fillx.length; ++p) {
+                        drawpayload += '[2,' + c + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
+                        // drawpayload += '[0,' + c + ',6,' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
+                    }
+
+                    drawpayload = drawpayload.slice(0, -1);
+                    drawpayload += ']]';
+                    sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+                }
+            }
         }
+
+        // for (cont in contours) {
+        //     for (p in cont) {
+        //         drawpayload += '[0,' + c + ',0,' + p[0] * 3 + ',' + p[1] * 3 + ',' + (p[0] + 1) * 3 + ',' + (p[1] + 1) * 3 + '],';
+        //     }
+        // drawpayload = drawpayload.slice(0, -1);
+        // drawpayload += ']]';
+        // sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+        // }
+
+
+        console.log("done drawing");
 
 
 
@@ -187,7 +265,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     dropRegion.addEventListener('dragover', preventDefault, false);
     dropRegion.addEventListener('drop', handleDrop, false);
 
-})
+});
 
 //BTW: onmessage painting message while painting draws for both you AND the audience. PERFECT!.
 //sockets[sockets.length-1].send('42["chat","HAHAHAAH YES!!!!!"]');
