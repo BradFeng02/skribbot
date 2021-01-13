@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     //test button
     var testbutton = document.createElement("Button");
     testbutton.innerHTML = "show/hide";
-    testbutton.style = "top:0;right:0;position:absolute;z-index:42000"
+    testbutton.style = "top:0;right:0;position:absolute;z-index:42000;height:50px";
     document.body.appendChild(testbutton);
     testbutton.addEventListener("click", function() {
         console.log('boop');
