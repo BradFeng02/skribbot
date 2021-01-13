@@ -31,7 +31,7 @@ window.WebSocket = function(...args) {
 document.addEventListener('DOMContentLoaded', (event) => {
     //test button
     var testbutton = document.createElement("Button");
-    testbutton.innerHTML = "test";
+    testbutton.innerHTML = "show/hide";
     testbutton.style = "top:0;right:0;position:absolute;z-index:42000"
     document.body.appendChild(testbutton);
     testbutton.addEventListener("click", function() {
@@ -92,7 +92,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // droppedimg.style.zIndex='69';
     // droppedimg.style.top='0';
     // droppedimg.style.left='0';
-    droppedimg.onload = function() {
+
+    droppedimg.onload = function() { //when image selected
         console.log('new image');
         dropRegion.style.display = 'none';
         dragRegion.style.display = 'none';
@@ -100,7 +101,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         //process image
         const scale = 4;
         const psize = 2; //for drawing
-        const filldist = 3; //distance from top left of contour to fill
+        const kernelsize = 5; //keep it odd
         const MAX_WID = 80 * scale;
         const MAX_HGT = 60 * scale;
 
@@ -152,13 +153,19 @@ document.addEventListener('DOMContentLoaded', (event) => {
         //draw image
         // const maxlen = 7;
 
-        //loops back to white once in case it was filled
-        for (let k = 0; k <= 22; ++k) {
-            let c = k % 22;
+        let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
+
+        for (let c = 0; c < 22; ++c) {
             if (usedcolors.has(c)) {
                 let contours = new cv.MatVector();
                 let h = new cv.Mat();
                 cv.findContours(mats[c], contours, h, cv.RETR_TREE, cv.CHAIN_APPROX_TC89_KCOS);
+
+                //bounding box for all contours
+                let minx = imw - 1;
+                let maxx = 0;
+                let miny = imh - 1;
+                let maxy = 0;
 
                 for (let i = 0; i < contours.size(); ++i) {
                     const cont = contours.get(i);
@@ -168,15 +175,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                     let x = cont.data32S[0];
                     let y = cont.data32S[1];
-                    let fillx = new Array();
-                    let filly = new Array();
 
                     for (let j = 0; j < cont.data32S.length - 2; j += 2) {
-                        //check if should fill here
-                        if (y >= filldist && x >= filldist && mats[c].data[(y - filldist) * imw + x] == 255 && mats[c].data[y * imw + x - filldist] == 255) {
-                            fillx.push(x);
-                            filly.push(y);
-                        }
+                        if (x < minx) minx = x;
+                        if (x > maxx) maxx = x;
+                        if (y < miny) miny = y;
+                        if (y > maxy) maxy = y;
 
                         nextx = cont.data32S[j + 2];
                         nexty = cont.data32S[j + 3];
@@ -185,13 +189,46 @@ document.addEventListener('DOMContentLoaded', (event) => {
                         x = nextx;
                         y = nexty;
                     }
+                    if (x < minx) minx = x;
+                    if (x > maxx) maxx = x;
+                    if (y < miny) miny = y;
+                    if (y > maxy) maxy = y;
 
                     drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + cont.data32S[0] * psize + ',' + cont.data32S[1] * psize + '],';
 
-                    const d = 2;
-                    for (let p = 0; p < fillx.length; ++p) {
-                        drawpayload += '[2,' + c + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
-                        // drawpayload += '[0,' + c + ',6,' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
+                    // const d = 2;
+                    // for (let p = 0; p < fillx.length; ++p) {
+                    //     drawpayload += '[2,' + c + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
+                    //     // drawpayload += '[0,' + c + ',6,' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
+                    // }
+
+
+
+                    drawpayload = drawpayload.slice(0, -1);
+                    drawpayload += ']]';
+                    sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+                }
+
+                //fill contours
+
+                if (maxx > minx && maxy > miny) {
+                    //erode region with contours
+                    // let e = mats[c].roi(new cv.Rect(minx, miny, maxx - minx, maxy - miny));
+                    cv.erode(mats[c], mats[c], k);
+
+                    let drawpayload = '42["drawCommands",[';
+                    //if corner, fill
+                    for (let fx = minx; fx <= maxx; ++fx) {
+                        for (let fy = miny; fy <= maxy; ++fy) {
+                            if (mats[c].data[fy * imw + fx] == 255 && //is on AND
+                                ((fy == 0 || mats[c].data[(fy - 1) * imw + fx] == 0) || //up is off
+                                    (fy == imh - 1 || mats[c].data[(fy + 1) * imw + fx] == 0)) && //or down is off AND
+                                ((fx == 0 || mats[c].data[fy * imw + fx - 1] == 0) || //left is off
+                                    (fx == imw - 1 || mats[c].data[fy * imw + fx + 1] == 0))) { //or right is off
+                                drawpayload += '[2,' + c + ',' + (fx * psize) + ',' + (fy * psize) + '],';
+                                // drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
+                            }
+                        }
                     }
 
                     drawpayload = drawpayload.slice(0, -1);
@@ -201,45 +238,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             }
         }
 
-        // for (cont in contours) {
-        //     for (p in cont) {
-        //         drawpayload += '[0,' + c + ',0,' + p[0] * 3 + ',' + p[1] * 3 + ',' + (p[0] + 1) * 3 + ',' + (p[1] + 1) * 3 + '],';
-        //     }
-        // drawpayload = drawpayload.slice(0, -1);
-        // drawpayload += ']]';
-        // sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
-        // }
-
-
         console.log("done drawing");
-
-
-
-        // for (var y = 0; y < imh; y++) {
-        //     var drawpayload = '42["drawCommands",[';
-        //     for (var x = 0; x < imw; x++) {
-        //         let r = mat.data[4 * (x + y * imw) + 0]
-        //         let g = mat.data[4 * (x + y * imw) + 1]
-        //         let b = mat.data[4 * (x + y * imw) + 2]
-        //         drawpayload = drawpayload.concat('[0,' + ((0.21 * r + 0.72 * g + 0.07 * b) > 128 ? 0 : 1) + ',0,' + x * 3 + ',' + y * 3 + ',' + (x + 1) * 3 + ',' + (y + 1) * 3 + '],');
-        //     }
-        //     drawpayload = drawpayload.slice(0, -1);
-        //     drawpayload = drawpayload.concat(']]');
-        //     sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
-        // }
-
-        // const wid = 800;
-        // const hgt = 600;
-        // var drawpayload = '42["drawCommands",[';
-        // for (x = 0; x < 1000; x++) {
-        //     drawpayload = drawpayload.concat('[0,' + (x) % 21 + ',0,' + 0 + ',' + (300 + 300 * Math.sin(x)) + ',' + 800 + ',' + (300 + 300 * Math.cos(x)) + '],');
-        // }
-        // drawpayload = drawpayload.slice(0, -1);
-        // drawpayload = drawpayload.concat(']]');
-        // console.log("DELIVERING");
-        // sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
-
-        //clean up
         src.delete();
     }
 
