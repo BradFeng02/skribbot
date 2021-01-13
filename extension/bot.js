@@ -204,7 +204,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
         clear();
 
         //process image
-        const scale = 4;
+        //scale * psize <= 10 !!!!!
+        const scale = 5;
         const psize = 2; //for drawing
         const kernelsize = 5; //keep it odd
         const MAX_WID = 80 * scale;
