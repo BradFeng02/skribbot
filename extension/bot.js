@@ -87,6 +87,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
         sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
     }
 
+    function clear() {
+        sockets[sockets.length - 1].directsend('42["canvasClear"]');
+    }
+
     //store images
     var droppedimg = document.createElement('img');
     document.body.appendChild(droppedimg);
@@ -197,7 +201,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     function processimg() {
-        fakemessage('42["canvasClear"]');
+        clear();
 
         //process image
         const scale = 4;
@@ -267,9 +271,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dropRegion.style.display = 'none';
         dragRegion.style.display = 'none';
 
-        fakemessage('42["canvasClear"]');
-        //delay because sometimes clear canvas leaves last message drawn
-        setTimeout(function() { processimg() }, 250);
+        clear();
+        //delay because clear canvas leaves last message if it is still drawing
+        setTimeout(function() { processimg() }, 300);
 
     }
 
