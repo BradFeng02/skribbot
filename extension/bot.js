@@ -93,6 +93,105 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // droppedimg.style.top='0';
     // droppedimg.style.left='0';
 
+    function fillcolor(c, maxx, minx, maxy, miny, mats, k, imw, imh, psize, usedcolors) {
+        //erode region with contours
+        // let e = mat.roi(new cv.Rect(minx, miny, maxx - minx, maxy - miny));
+        cv.erode(mats[c], mats[c], k);
+
+        let drawpayload = '42["drawCommands",[';
+        //if corner, fill
+        for (let fx = minx; fx <= maxx; fx += 2) { //inc by 2 to hopefully speed it up, most situations unaffected
+            for (let fy = miny; fy <= maxy; fy += 2) {
+                if (mats[c].data[fy * imw + fx] == 255 && //is on AND
+                    ((fy == 0 || mats[c].data[(fy - 1) * imw + fx] == 0) || //up is off
+                        (fy == imh - 1 || mats[c].data[(fy + 1) * imw + fx] == 0)) && //or down is off AND
+                    ((fx == 0 || mats[c].data[fy * imw + fx - 1] == 0) || //left is off
+                        (fx == imw - 1 || mats[c].data[fy * imw + fx + 1] == 0))) { //or right is off
+                    drawpayload += '[2,' + c + ',' + (fx * psize) + ',' + (fy * psize) + '],';
+                    // drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
+                }
+            }
+        }
+
+        drawpayload = drawpayload.slice(0, -1);
+        drawpayload += ']]';
+        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+
+        if (c < 21) {
+            setTimeout(function() { drawcolor(c + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
+        } else {
+            console.log("done");
+        }
+    }
+
+    function drawcolor(c, mats, imw, imh, psize, k, usedcolors) {
+        console.log("drawing", c);
+        let skipfill = false;
+
+        if (usedcolors.has(c)) {
+            let contours = new cv.MatVector();
+            let h = new cv.Mat();
+            cv.findContours(mats[c], contours, h, cv.RETR_TREE, cv.CHAIN_APPROX_TC89_KCOS);
+
+            //bounding box for all contours
+            let minx = imw - 1;
+            let maxx = 0;
+            let miny = imh - 1;
+            let maxy = 0;
+
+            for (let i = 0; i < contours.size(); ++i) {
+                const cont = contours.get(i);
+                if (cv.contourArea(cont) < 7) continue;
+
+                let drawpayload = '42["drawCommands",[';
+
+                let x = cont.data32S[0];
+                let y = cont.data32S[1];
+
+                for (let j = 0; j < cont.data32S.length - 2; j += 2) {
+                    if (x < minx) minx = x;
+                    if (x > maxx) maxx = x;
+                    if (y < miny) miny = y;
+                    if (y > maxy) maxy = y;
+
+                    nextx = cont.data32S[j + 2];
+                    nexty = cont.data32S[j + 3];
+                    drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + nextx * psize + ',' + nexty * psize + '],';
+
+                    x = nextx;
+                    y = nexty;
+                }
+                if (x < minx) minx = x;
+                if (x > maxx) maxx = x;
+                if (y < miny) miny = y;
+                if (y > maxy) maxy = y;
+
+                drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + cont.data32S[0] * psize + ',' + cont.data32S[1] * psize + '],';
+
+                drawpayload = drawpayload.slice(0, -1);
+                drawpayload += ']]';
+                sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+            }
+
+            //fill contours
+            if (maxx > minx && maxy > miny) {
+                setTimeout(function() { fillcolor(c, maxx, minx, maxy, miny, mats, k, imw, imh, psize, usedcolors) }, 0);
+            } else {
+                skipfill = true;
+            }
+        } else {
+            skipfill = true;
+        }
+
+        if (skipfill) {
+            if (c < 21) {
+                setTimeout(function() { drawcolor(c + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
+            } else {
+                console.log("done");
+            }
+        }
+    }
+
     droppedimg.onload = function() { //when image selected
         console.log('new image');
         dropRegion.style.display = 'none';
@@ -107,23 +206,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         var src = cv.imread(droppedimg);
 
-
-        if (src.type = cv.CV_8UC4) {
-            for (let x = 0; x < src.cols; ++x) {
-                for (let y = 0; y < src.rows; ++y) {
-
-                    if (src.data[y * src.cols * 4 + x * 4 + 3] == 0) {
-                        src.data[y * src.cols * 4 + x * 4] = 255;
-                        src.data[y * src.cols * 4 + x * 4 + 1] = 255;
-                        src.data[y * src.cols * 4 + x * 4 + 2] = 255;
-                    }
-                }
-            }
-        }
-
-        cv.cvtColor(src, src, cv.COLOR_BGRA2BGR);
-
-
         var r = src.rows / src.cols;
         if (r > MAX_HGT / MAX_WID) { // hgt/wid=0.75
             cv.resize(src, src, new cv.Size(Math.round(MAX_HGT / r), MAX_HGT), 0, 0, cv.INTER_LANCZOS4); //INTER_AREA
@@ -132,6 +214,22 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
         const imw = src.cols;
         const imh = src.rows;
+
+        //change transparent to white
+        if (src.type = cv.CV_8UC4) {
+            for (let x = 0; x < src.cols; ++x) {
+                for (let y = 0; y < src.rows; ++y) {
+                    let i = y * src.cols * 4 + x * 4;
+                    if (src.data[i + 3] == 0) {
+                        src.data[i] = 255;
+                        src.data[i + 1] = 255;
+                        src.data[i + 2] = 255;
+                    }
+                }
+            }
+        }
+
+        cv.cvtColor(src, src, cv.COLOR_BGRA2BGR);
 
         //create threshed mats
         let mats = new Array(22);
@@ -150,95 +248,15 @@ document.addEventListener('DOMContentLoaded', (event) => {
             }
         }
 
+        console.log("processing done");
+
         //draw image
         // const maxlen = 7;
 
         let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
 
-        for (let c = 0; c < 22; ++c) {
-            if (usedcolors.has(c)) {
-                let contours = new cv.MatVector();
-                let h = new cv.Mat();
-                cv.findContours(mats[c], contours, h, cv.RETR_TREE, cv.CHAIN_APPROX_TC89_KCOS);
+        setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 0);
 
-                //bounding box for all contours
-                let minx = imw - 1;
-                let maxx = 0;
-                let miny = imh - 1;
-                let maxy = 0;
-
-                for (let i = 0; i < contours.size(); ++i) {
-                    const cont = contours.get(i);
-                    if (cv.contourArea(cont) < 7) continue;
-
-                    let drawpayload = '42["drawCommands",[';
-
-                    let x = cont.data32S[0];
-                    let y = cont.data32S[1];
-
-                    for (let j = 0; j < cont.data32S.length - 2; j += 2) {
-                        if (x < minx) minx = x;
-                        if (x > maxx) maxx = x;
-                        if (y < miny) miny = y;
-                        if (y > maxy) maxy = y;
-
-                        nextx = cont.data32S[j + 2];
-                        nexty = cont.data32S[j + 3];
-                        drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + nextx * psize + ',' + nexty * psize + '],';
-
-                        x = nextx;
-                        y = nexty;
-                    }
-                    if (x < minx) minx = x;
-                    if (x > maxx) maxx = x;
-                    if (y < miny) miny = y;
-                    if (y > maxy) maxy = y;
-
-                    drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + cont.data32S[0] * psize + ',' + cont.data32S[1] * psize + '],';
-
-                    // const d = 2;
-                    // for (let p = 0; p < fillx.length; ++p) {
-                    //     drawpayload += '[2,' + c + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
-                    //     // drawpayload += '[0,' + c + ',6,' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + ',' + (fillx[p] * psize - d) + ',' + (filly[p] * psize - d) + '],';
-                    // }
-
-
-
-                    drawpayload = drawpayload.slice(0, -1);
-                    drawpayload += ']]';
-                    sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
-                }
-
-                //fill contours
-
-                if (maxx > minx && maxy > miny) {
-                    //erode region with contours
-                    // let e = mats[c].roi(new cv.Rect(minx, miny, maxx - minx, maxy - miny));
-                    cv.erode(mats[c], mats[c], k);
-
-                    let drawpayload = '42["drawCommands",[';
-                    //if corner, fill
-                    for (let fx = minx; fx <= maxx; ++fx) {
-                        for (let fy = miny; fy <= maxy; ++fy) {
-                            if (mats[c].data[fy * imw + fx] == 255 && //is on AND
-                                ((fy == 0 || mats[c].data[(fy - 1) * imw + fx] == 0) || //up is off
-                                    (fy == imh - 1 || mats[c].data[(fy + 1) * imw + fx] == 0)) && //or down is off AND
-                                ((fx == 0 || mats[c].data[fy * imw + fx - 1] == 0) || //left is off
-                                    (fx == imw - 1 || mats[c].data[fy * imw + fx + 1] == 0))) { //or right is off
-                                drawpayload += '[2,' + c + ',' + (fx * psize) + ',' + (fy * psize) + '],';
-                                // drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
-                            }
-                        }
-                    }
-
-                    drawpayload = drawpayload.slice(0, -1);
-                    drawpayload += ']]';
-                    sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
-                }
-            }
-        }
-
-        console.log("done drawing");
         src.delete();
     }
 
