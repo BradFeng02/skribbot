@@ -81,7 +81,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
     function bestColor(r, g, b) {
         return colorcode[best_colors[((r & 0x0ff) << 16) | ((g & 0x0ff) << 8) | (b & 0x0ff)].charCodeAt() - 97];
     }
-    window.bestColor = bestColor;
+
+    //receive message (will auto send)
+    function fakemessage(drawpayload) {
+        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+    }
 
     //store images
     var droppedimg = document.createElement('img');
@@ -115,7 +119,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         drawpayload = drawpayload.slice(0, -1);
         drawpayload += ']]';
-        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+        fakemessage(drawpayload);
 
         if (c < 21) {
             setTimeout(function() { drawcolor(c + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
@@ -170,7 +174,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                 drawpayload = drawpayload.slice(0, -1);
                 drawpayload += ']]';
-                sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+                fakemessage(drawpayload);
             }
 
             //fill contours
@@ -192,10 +196,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
     }
 
-    droppedimg.onload = function() { //when image selected
-        console.log('new image');
-        dropRegion.style.display = 'none';
-        dragRegion.style.display = 'none';
+    function processimg() {
+        fakemessage('42["canvasClear"]');
 
         //process image
         const scale = 4;
@@ -258,6 +260,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
         setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 0);
 
         src.delete();
+    }
+
+    droppedimg.onload = function() { //when image selected
+        console.log('new image');
+        dropRegion.style.display = 'none';
+        dragRegion.style.display = 'none';
+
+        fakemessage('42["canvasClear"]');
+        //delay because sometimes clear canvas leaves last message drawn
+        setTimeout(function() { processimg() }, 250);
+
     }
 
     //dragndrop setup
