@@ -11,15 +11,22 @@ window.WebSocket = function(...args) {
         socket.directsend(args);
         //detect your word
         if (args === '42["lobbyChooseWord",0]') {
-            google.search.cse.element.getElement('standard0').execute(document.getElementsByClassName('word')[0].innerText);
-            document.getElementById('droprgn').style.display = 'block';
+            let word = document.getElementsByClassName('word')[0].innerText; //get word
+            //copy search string in case built in breaks
+            navigator.clipboard.writeText("https://www.bing.com/images/search?q=" + word + "&form=QBIR&qft=%20filterui%3Aphoto-clipart");
+            google.search.cse.element.getElement('standard0').execute(word); //search word with built in
+            document.getElementById('droprgn').style.display = 'block'; //show search and drop rgn
             document.getElementById('dragrgn').style.display = 'block';
         } else if (args === '42["lobbyChooseWord",1]') {
-            google.search.cse.element.getElement('standard0').execute(document.getElementsByClassName('word')[1].innerText);
+            let word = document.getElementsByClassName('word')[1].innerText;
+            navigator.clipboard.writeText("https://www.bing.com/images/search?q=" + word + "&form=QBIR&qft=%20filterui%3Aphoto-clipart");
+            google.search.cse.element.getElement('standard0').execute(word);
             document.getElementById('droprgn').style.display = 'block';
             document.getElementById('dragrgn').style.display = 'block';
         } else if (args === '42["lobbyChooseWord",2]') {
-            google.search.cse.element.getElement('standard0').execute(document.getElementsByClassName('word')[2].innerText);
+            let word = document.getElementsByClassName('word')[2].innerText;
+            navigator.clipboard.writeText("https://www.bing.com/images/search?q=" + word + "&form=QBIR&qft=%20filterui%3Aphoto-clipart");
+            google.search.cse.element.getElement('standard0').execute(word);
             document.getElementById('droprgn').style.display = 'block';
             document.getElementById('dragrgn').style.display = 'block';
         }
