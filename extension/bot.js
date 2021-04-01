@@ -222,15 +222,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         var src = cv.imread(droppedimg);
 
-        var r = src.rows / src.cols;
-        if (r > MAX_HGT / MAX_WID) { // hgt/wid=0.75
-            cv.resize(src, src, new cv.Size(Math.round(MAX_HGT / r), MAX_HGT), 0, 0, cv.INTER_LANCZOS4); //INTER_AREA
-        } else {
-            cv.resize(src, src, new cv.Size(MAX_WID, Math.round(MAX_WID * r)), 0, 0, cv.INTER_LANCZOS4);
-        }
-        const imw = src.cols;
-        const imh = src.rows;
-
         //change transparent to white
         if (src.type = cv.CV_8UC4) {
             for (let x = 0; x < src.cols; ++x) {
@@ -244,8 +235,17 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 }
             }
         }
-
         cv.cvtColor(src, src, cv.COLOR_BGRA2BGR);
+
+        //resize
+        var r = src.rows / src.cols;
+        if (r > MAX_HGT / MAX_WID) { // hgt/wid=0.75
+            cv.resize(src, src, new cv.Size(Math.round(MAX_HGT / r), MAX_HGT), 0, 0, cv.INTER_LANCZOS4); //INTER_AREA
+        } else {
+            cv.resize(src, src, new cv.Size(MAX_WID, Math.round(MAX_WID * r)), 0, 0, cv.INTER_LANCZOS4);
+        }
+        const imw = src.cols;
+        const imh = src.rows;
 
         //create threshed mats
         let mats = new Array(22);
