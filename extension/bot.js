@@ -110,10 +110,11 @@ document.addEventListener('DOMContentLoaded', (event) => {
     // droppedimg.style.top='0';
     // droppedimg.style.left='0';
 
-    function fillcolor(c, maxx, minx, maxy, miny, mats, k, imw, imh, psize, usedcolors) {
+    function fillcolor(cc, maxx, minx, maxy, miny, mats, k, imw, imh, psize, usedcolors) {
+        let c = cc % 22;
         //erode region with contours
         // let e = mat.roi(new cv.Rect(minx, miny, maxx - minx, maxy - miny));
-        cv.erode(mats[c], mats[c], k);
+        cv.erode(mats[c], mats[c], k, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, [0, 0, 0, 0]); //erode with borders black
 
         let drawpayload = '42["drawCommands",[';
         //if corner, fill
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     ((fx == 0 || mats[c].data[fy * imw + fx - 1] == 0) || //left is off
                         (fx == imw - 1 || mats[c].data[fy * imw + fx + 1] == 0))) { //or right is off
                     drawpayload += '[2,' + c + ',' + (fx * psize) + ',' + (fy * psize) + '],';
-                    // drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
+                    //drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
                 }
             }
         }
@@ -134,14 +135,15 @@ document.addEventListener('DOMContentLoaded', (event) => {
         drawpayload += ']]';
         fakemessage(drawpayload);
 
-        if (c < 21) {
-            setTimeout(function() { drawcolor(c + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
+        if (cc <= 21) {
+            setTimeout(function() { drawcolor(cc + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
         } else {
             console.log("done");
         }
     }
 
-    function drawcolor(c, mats, imw, imh, psize, k, usedcolors) {
+    function drawcolor(cc, mats, imw, imh, psize, k, usedcolors) {
+        let c = cc % 22;
         console.log("drawing", c);
         let skipfill = false;
 
@@ -192,7 +194,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
             //fill contours
             if (maxx > minx && maxy > miny) {
-                setTimeout(function() { fillcolor(c, maxx, minx, maxy, miny, mats, k, imw, imh, psize, usedcolors) }, 0);
+                setTimeout(function() { fillcolor(cc, maxx, minx, maxy, miny, mats, k, imw, imh, psize, usedcolors) }, 0);
             } else {
                 skipfill = true;
             }
@@ -201,8 +203,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
 
         if (skipfill) {
-            if (c < 21) {
-                setTimeout(function() { drawcolor(c + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
+            if (cc <= 21) { //loop back to white once
+                setTimeout(function() { drawcolor(cc + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
             } else {
                 console.log("done");
             }
