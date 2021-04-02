@@ -135,7 +135,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         drawpayload += ']]';
         fakemessage(drawpayload);
 
-        if (cc <= 21) {
+        if (cc < 21) {
             setTimeout(function() { drawcolor(cc + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
         } else {
             console.log("done");
@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
 
         if (skipfill) {
-            if (cc <= 21) { //loop back to white once
+            if (cc < 21) { //loop back to white once
                 setTimeout(function() { drawcolor(cc + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
             } else {
                 console.log("done");
