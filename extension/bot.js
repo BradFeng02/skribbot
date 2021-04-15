@@ -284,6 +284,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function processimg() {
         clear();
+        suppress();
 
         //process image
         //scale * psize <= 10 !!!!!
@@ -344,7 +345,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
 
-        suppress();
         setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 0);
 
         src.delete();
