@@ -8,6 +8,8 @@ window.WebSocket = function(...args) {
     const realsend = socket.send;
     socket.directsend = realsend;
     socket.send = function(args) {
+        // if (args !== '42["canvasClear"]') socket.directsend(args); //block non skribbot origin clears (used to stop autosending)
+        // else console.log("real clear blocked");
         socket.directsend(args);
         //detect your word
         const str1 = "https://www.google.com/search?q="; //for copy paste backup (in case search break)
@@ -38,7 +40,7 @@ window.WebSocket = function(...args) {
 
 //UI code (run after page load)
 document.addEventListener('DOMContentLoaded', (event) => {
-    //test button
+    //test button (toggles search and droprgn)
     var testbutton = document.createElement("Button");
     testbutton.innerHTML = "show/hide";
     testbutton.style = "top:0;right:0;position:absolute;z-index:42000;height:50px";
@@ -48,6 +50,13 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dropRegion.style.display = dropRegion.style.display === 'block' ? 'none' : 'block';
         dragRegion.style.display = dragRegion.style.display === 'block' ? 'none' : 'block';
     });
+
+    //replaces clear canvas button with direct send clear
+    // var clearcanvasbtn = document.getElementById("buttonClearCanvas");
+    // clearcanvasbtn.addEventListener("click", function() {
+    //     console.log('canvas cleared with button');
+    //     clear();
+    // });
 
     //takes images
     var dropRegion = document.createElement('div');
@@ -91,13 +100,46 @@ document.addEventListener('DOMContentLoaded', (event) => {
         return colorcode[best_colors[((r & 0x0ff) << 16) | ((g & 0x0ff) << 8) | (b & 0x0ff)].charCodeAt() - 97];
     }
 
-    //receive message (will auto send)
-    function fakemessage(drawpayload) {
+    //sends and receives message
+    function fakedraw(drawpayload) {
+        //both draws AND sends but SLOWER
+        //sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+
+        //max draw message length: 8
+        //sends
+        sockets[sockets.length - 1].directsend(drawpayload);
+        //draws for us (wont resend because of the suppress function)
         sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
     }
 
+    //clear canvas with direct send
     function clear() {
         sockets[sockets.length - 1].directsend('42["canvasClear"]');
+    }
+
+    //current drawer id
+    window.curDrawID = -1;
+
+    //stops onmessage while drawing from auto sending commands
+    function suppress() {
+        //get cur drawer id (doing before because after suppress, drawing element disappears)
+        let e = document.getElementsByClassName("drawing");
+        for (let i = 0; i < e.length; ++i) {
+            if (e[i].style.display !== "none") {
+                let s = e[i].parentElement.parentElement.id;
+                if (s !== "gamePlayerDummy") {
+                    curDrawID = parseInt(s.substring(6));
+                    break;
+                }
+            }
+        }
+
+        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: '42["lobbyReveal",{"reason":"DL","word":"skribbot is drawing","scores":[]}]', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }))
+    }
+
+    //brings back drawing controls (when called after suppress during your turn)
+    function unsuppress() {
+        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: '42["lobbyPlayerDrawing",' + curDrawID + ']', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }))
     }
 
     //store images
@@ -117,6 +159,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
         cv.erode(mats[c], mats[c], k, new cv.Point(-1, -1), 1, cv.BORDER_CONSTANT, [0, 0, 0, 0]); //erode with borders black
 
         let drawpayload = '42["drawCommands",[';
+        let temp = 0;
+
         //if corner, fill
         for (let fx = minx; fx <= maxx; fx += 2) { //inc by 2 to hopefully speed it up, most situations unaffected
             for (let fy = miny; fy <= maxy; fy += 2) {
@@ -125,6 +169,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
                         (fy == imh - 1 || mats[c].data[(fy + 1) * imw + fx] == 0)) && //or down is off AND
                     ((fx == 0 || mats[c].data[fy * imw + fx - 1] == 0) || //left is off
                         (fx == imw - 1 || mats[c].data[fy * imw + fx + 1] == 0))) { //or right is off
+
+                    if (++temp >= 8) {
+                        drawpayload = drawpayload.slice(0, -1);
+                        drawpayload += ']]';
+                        fakedraw(drawpayload);
+                        drawpayload = '42["drawCommands",[';
+                        temp = 0;
+                    }
                     drawpayload += '[2,' + c + ',' + (fx * psize) + ',' + (fy * psize) + '],';
                     //drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
                 }
@@ -133,11 +185,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         drawpayload = drawpayload.slice(0, -1);
         drawpayload += ']]';
-        fakemessage(drawpayload);
+        fakedraw(drawpayload);
 
         if (cc < 21) {
             setTimeout(function() { drawcolor(cc + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
         } else {
+            unsuppress();
             console.log("done");
         }
     }
@@ -158,6 +211,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
             let miny = imh - 1;
             let maxy = 0;
 
+            let temp = 0;
+
             for (let i = 0; i < contours.size(); ++i) {
                 const cont = contours.get(i);
                 if (cv.contourArea(cont) < 4) continue; //(used to be 7)  //MIN SIZE OF CONTOUR TO DRAW
@@ -175,6 +230,14 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
                     nextx = cont.data32S[j + 2];
                     nexty = cont.data32S[j + 3];
+
+                    if (++temp >= 8) {
+                        drawpayload = drawpayload.slice(0, -1);
+                        drawpayload += ']]';
+                        fakedraw(drawpayload);
+                        drawpayload = '42["drawCommands",[';
+                        temp = 0;
+                    }
                     drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + nextx * psize + ',' + nexty * psize + '],';
 
                     x = nextx;
@@ -185,11 +248,18 @@ document.addEventListener('DOMContentLoaded', (event) => {
                 if (y < miny) miny = y;
                 if (y > maxy) maxy = y;
 
+                if (++temp >= 8) {
+                    drawpayload = drawpayload.slice(0, -1);
+                    drawpayload += ']]';
+                    fakedraw(drawpayload);
+                    drawpayload = '42["drawCommands",[';
+                    temp = 0;
+                }
                 drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + cont.data32S[0] * psize + ',' + cont.data32S[1] * psize + '],';
 
                 drawpayload = drawpayload.slice(0, -1);
                 drawpayload += ']]';
-                fakemessage(drawpayload);
+                fakedraw(drawpayload);
             }
 
             //fill contours
@@ -206,6 +276,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
             if (cc < 21) { //loop back to white once
                 setTimeout(function() { drawcolor(cc + 1, mats, imw, imh, psize, k, usedcolors) }, 0);
             } else {
+                unsuppress();
                 console.log("done");
             }
         }
@@ -273,6 +344,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
 
+        suppress();
         setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 0);
 
         src.delete();
