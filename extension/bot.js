@@ -115,6 +115,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
     //clear canvas with direct send
     function clear() {
         sockets[sockets.length - 1].directsend('42["canvasClear"]');
+        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: '42["canvasClear"]', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }))
+
     }
 
     //current drawer id
@@ -283,9 +285,6 @@ document.addEventListener('DOMContentLoaded', (event) => {
     }
 
     function processimg() {
-        clear();
-        suppress();
-
         //process image
         //scale * psize <= 10 !!!!!
         const scale = 5;
@@ -345,6 +344,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
 
+        clear();
         setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 0);
 
         src.delete();
@@ -355,6 +355,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dropRegion.style.display = 'none';
         dragRegion.style.display = 'none';
 
+        suppress();
         clear();
         //delay because clear canvas leaves last message if it is still drawing
         setTimeout(function() { processimg() }, 300);
