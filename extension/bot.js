@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
             for (let i = 0; i < contours.size(); ++i) {
                 const cont = contours.get(i);
-                if (cv.contourArea(cont) < 7) continue;
+                if (cv.contourArea(cont) < 4) continue; //(used to be 7)  //MIN SIZE OF CONTOUR TO DRAW
 
                 let drawpayload = '42["drawCommands",[';
 
