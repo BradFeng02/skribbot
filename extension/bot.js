@@ -51,6 +51,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dragRegion.style.display = dragRegion.style.display === 'block' ? 'none' : 'block';
     });
 
+    //setting this lets us be able to search for active drawer with just display: block;
+    document.querySelector("#gamePlayerDummy>.avatar>.drawing").setAttribute("style", "display:block");
+
     //replaces clear canvas button with direct send clear
     // var clearcanvasbtn = document.getElementById("buttonClearCanvas");
     // clearcanvasbtn.addEventListener("click", function() {
@@ -100,48 +103,59 @@ document.addEventListener('DOMContentLoaded', (event) => {
         return colorcode[best_colors[((r & 0x0ff) << 16) | ((g & 0x0ff) << 8) | (b & 0x0ff)].charCodeAt() - 97];
     }
 
-    //sends and receives message
+    window.fr = fakereceive;
+    //calls onmessage of active socket with msg
+    function fakereceive(msg) {
+        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: msg, origin: "", lastEventId: "", source: null }));
+    }
+
+    //direct sends msg to active socket
+    function fakesend(msg) {
+        sockets[sockets.length - 1].directsend(msg);
+    }
+
+    //sends then receives message
     function fakedraw(drawpayload) {
         //both draws AND sends but SLOWER
         //sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
 
         //max draw message length: 8
         //sends
-        sockets[sockets.length - 1].directsend(drawpayload);
+        fakesend(drawpayload);
         //draws for us (wont resend because of the suppress function)
-        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: drawpayload, origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }));
+        fakereceive(drawpayload);
     }
 
     //clear canvas with direct send
     function clear() {
-        sockets[sockets.length - 1].directsend('42["canvasClear"]');
-        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: '42["canvasClear"]', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }))
-
+        fakedraw('42["canvasClear"]');
     }
 
     //current drawer id
     window.curDrawID = -1;
 
-    //stops onmessage while drawing from auto sending commands
-    function suppress() {
+    //nice way to know if processing started without pausing the timer
+    function prepare() {
         //get cur drawer id (doing before because after suppress, drawing element disappears)
-        let e = document.getElementsByClassName("drawing");
-        for (let i = 0; i < e.length; ++i) {
-            if (e[i].style.display !== "none") {
-                let s = e[i].parentElement.parentElement.id;
-                if (s !== "gamePlayerDummy") {
-                    curDrawID = parseInt(s.substring(6));
-                    break;
-                }
-            }
-        }
+        curDrawID = parseInt(document.querySelector('.drawing[style*="display: block;"]').parentElement.parentElement.id.substring(6));
 
-        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: '42["lobbyReveal",{"reason":"DL","word":"skribbot is drawing","scores":[]}]', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }))
+        fakereceive('42["lobbyPlayerConnected",{"id":-1,"name":"SKRIBBOT","avatar":[17,1,4,2],"score":-696969,"guessedWord":false}]'); //skribbot joins lol
+        // fakereceive('42["chat",{"id":-1,"message":"PROCESSING IMAGE"}]');
+    }
+
+    //stops onmessage while drawing from auto sending commands //call when drawing starts
+    function suppress() {
+        //fakereceive('42["lobbyReveal",{"reason":"DL","word":"SKRIBBOT IS DRAWING","scores":[]}]');
+
+        fakereceive('42["lobbyPlayerGuessedWord",-1]')
+        fakereceive('42["lobbyPlayerDrawing",-1]');
     }
 
     //brings back drawing controls (when called after suppress during your turn)
     function unsuppress() {
-        sockets[sockets.length - 1].onmessage(new MessageEvent('message', { isTrusted: true, data: '42["lobbyPlayerDrawing",' + curDrawID + ']', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null }))
+        fakereceive('42["chat",{"id":-1,"message":"DONE DRAWING"}]');
+        fakereceive('42["lobbyPlayerDisconnected",-1]')
+        fakereceive('42["lobbyPlayerDrawing",' + curDrawID + ']');
     }
 
     //store images
@@ -344,8 +358,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
         let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
 
+        suppress();
         clear();
-        setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 0);
+        setTimeout(function() {
+            clear(); //clear again because if something drawing, doesnt get cleared first time
+            setTimeout(function() { drawcolor(1, mats, imw, imh, psize, k, usedcolors) }, 200);
+        }, 100)
 
         src.delete();
     }
@@ -355,10 +373,9 @@ document.addEventListener('DOMContentLoaded', (event) => {
         dropRegion.style.display = 'none';
         dragRegion.style.display = 'none';
 
-        suppress();
-        clear();
+        prepare();
         //delay because clear canvas leaves last message if it is still drawing
-        setTimeout(function() { processimg() }, 300);
+        setTimeout(function() { processimg() }, 100);
 
     }
 
