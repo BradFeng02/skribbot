@@ -1,3 +1,6 @@
+window.curword = "skribbl.io";
+window.searchwin;
+
 //fake websockets
 window.sockets = [];
 const realWebSocket = window.WebSocket;
@@ -8,93 +11,59 @@ window.WebSocket = function(...args) {
     const realsend = socket.send;
     socket.directsend = realsend;
     socket.send = function(args) {
-        // if (args !== '42["canvasClear"]') socket.directsend(args); //block non skribbot origin clears (used to stop autosending)
-        // else console.log("real clear blocked");
         socket.directsend(args);
         //detect your word
-        const str1 = "https://www.google.com/search?q="; //for copy paste backup (in case search break)
-        const str2 = "&tbm=isch&tbs=itp:clipart&hl=en-US";
-        if (args === '42["lobbyChooseWord",0]') {
-            let word = document.getElementsByClassName('word')[0].innerText; //get word
-            //copy search string in case built in breaks
-            navigator.clipboard.writeText(str1 + word + str2);
-            google.search.cse.element.getElement('standard0').execute(word); //search word with built in
-            document.getElementById('droprgn').style.display = 'block'; //show search and drop rgn
-            document.getElementById('dragrgn').style.display = 'block';
-        } else if (args === '42["lobbyChooseWord",1]') {
-            let word = document.getElementsByClassName('word')[1].innerText;
-            navigator.clipboard.writeText(str1 + word + str2);
-            google.search.cse.element.getElement('standard0').execute(word);
-            document.getElementById('droprgn').style.display = 'block';
-            document.getElementById('dragrgn').style.display = 'block';
-        } else if (args === '42["lobbyChooseWord",2]') {
-            let word = document.getElementsByClassName('word')[2].innerText;
-            navigator.clipboard.writeText(str1 + word + str2);
-            google.search.cse.element.getElement('standard0').execute(word);
-            document.getElementById('droprgn').style.display = 'block';
-            document.getElementById('dragrgn').style.display = 'block';
+        if (args.substring(0, 19) === '42["lobbyChooseWord') {
+            curword = document.getElementsByClassName('word')[parseInt(args[21])].innerText; //get word
+            focussearch(true);
         }
     }
     return socket;
 };
 
+//if update, search curword
+function focussearch(update) {
+    if (searchwin.closed) {
+        searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US", "", "width=200");
+    } else if (update) {
+        searchwin.location.href = "https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US";
+    }
+    // searchwin.moveTo(window.screenLeft, window.screenTop);
+    // searchwin.resizeTo(window.outerWidth / 2, window.outerHeight);
+    searchwin.focus();
+    //document.getElementById('droprgn').style.display = 'block';
+}
+
 //UI code (run after page load)
 document.addEventListener('DOMContentLoaded', (event) => {
     //test button (toggles search and droprgn)
     var testbutton = document.createElement("Button");
-    testbutton.innerHTML = "show/hide";
+    testbutton.innerHTML = "fix";
     testbutton.style = "top:0;right:0;position:absolute;z-index:42000;height:50px";
     document.body.appendChild(testbutton);
     testbutton.addEventListener("click", function() {
         console.log('boop');
-        dropRegion.style.display = dropRegion.style.display === 'block' ? 'none' : 'block';
-        dragRegion.style.display = dragRegion.style.display === 'block' ? 'none' : 'block';
+        focussearch(false);
     });
 
     //setting this lets us be able to search for active drawer with just display: block;
     document.querySelector("#gamePlayerDummy>.avatar>.drawing").setAttribute("style", "display:block");
 
-    //replaces clear canvas button with direct send clear
-    // var clearcanvasbtn = document.getElementById("buttonClearCanvas");
-    // clearcanvasbtn.addEventListener("click", function() {
-    //     console.log('canvas cleared with button');
-    //     clear();
-    // });
+    window.searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US", "", "width=200");
 
     //takes images
     var dropRegion = document.createElement('div');
     document.body.appendChild(dropRegion);
     dropRegion.id = 'droprgn';
-    dropRegion.style.display = 'none';
+    dropRegion.style.display = 'block';
     dropRegion.style.backgroundColor = "yellow";
     dropRegion.style.opacity = '50%';
-    dropRegion.style.position = 'fixed';
+    dropRegion.style.position = 'absolute';
     dropRegion.style.zIndex = '6969';
     dropRegion.style.top = '0';
     dropRegion.style.right = '0';
-    dropRegion.style.height = '100%';
+    dropRegion.style.height = '69px';
     dropRegion.style.width = '50%';
-
-    //searches images
-    var dragRegion = document.createElement('div');
-    document.body.appendChild(dragRegion);
-    dragRegion.id = 'dragrgn';
-    dragRegion.style.display = 'none';
-    dragRegion.style.opacity = '95%';
-    dragRegion.style.position = 'fixed';
-    dragRegion.style.zIndex = '6969';
-    dragRegion.style.top = '0';
-    dragRegion.style.left = '0';
-    dragRegion.style.height = '100%';
-    dragRegion.style.width = '50%';
-    dragRegion.style.overflow = 'scroll';
-    var imgsearch = document.createElement('div');
-    dragRegion.appendChild(imgsearch);
-    imgsearch.setAttribute('data-image_type', 'clipart');
-    imgsearch.setAttribute('data-disableWebSearch', 'true');
-    imgsearch.setAttribute('data-mobileLayout', 'forced');
-    // imgsearch.setAttribute('data-image_as_filetype','png');
-    imgsearch.className = 'gcse-search';
 
     //best colors
     window.colorcode = [20, -1, 21, 3, 4, 5, 7, 9, 14, 11, 13, 15, -1, -1, 16, 18, 0, 6, 1, 8, 12, -1, 2, 19, 10, 17];
@@ -146,7 +115,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     //stops onmessage while drawing from auto sending commands //call when drawing starts
     function suppress() {
         //fakereceive('42["lobbyReveal",{"reason":"DL","word":"SKRIBBOT IS DRAWING","scores":[]}]');
-
+        fakereceive('42["lobbyPlayerRateDrawing",[-1,-1,1]]');
         fakereceive('42["lobbyPlayerGuessedWord",-1]')
         fakereceive('42["lobbyPlayerDrawing",-1]');
     }
@@ -370,8 +339,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     droppedimg.onload = function() { //when image selected
         console.log('new image');
-        dropRegion.style.display = 'none';
-        dragRegion.style.display = 'none';
+        // dropRegion.style.display = 'none';
 
         prepare();
         //delay because clear canvas leaves last message if it is still drawing
@@ -402,8 +370,3 @@ document.addEventListener('DOMContentLoaded', (event) => {
     dropRegion.addEventListener('drop', handleDrop, false);
 
 });
-
-//BTW: onmessage painting message while painting draws for both you AND the audience. PERFECT!.
-//sockets[sockets.length-1].send('42["chat","HAHAHAAH YES!!!!!"]');
-//sockets[sockets.length-1].onmessage(new MessageEvent('message', {isTrusted: true, data: '42["lobbyDrawTime",30]', origin: "wss://server2.skribbl.io:5008", lastEventId: "", source: null}));
-//'42["drawCommands",[[0,color,size,x1,y1,x2,y2],[0,1,12,486,292,491,318],[0,1,12,491,318,491,329]]]'
