@@ -24,7 +24,7 @@ window.WebSocket = function(...args) {
 //if update, search curword
 function focussearch(update) {
     if (searchwin.closed) {
-        searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US", "", "width=200");
+        searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US");
     } else if (update) {
         searchwin.location.href = "https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US";
     }
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
     //setting this lets us be able to search for active drawer with just display: block;
     document.querySelector("#gamePlayerDummy>.avatar>.drawing").setAttribute("style", "display:block");
 
-    window.searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US", "", "width=200");
+    window.searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US");
 
     //takes images
     var dropRegion = document.createElement('div');
@@ -102,9 +102,15 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     //current drawer id
     window.curDrawID = -1;
+    window.ogtimer = 0;
+    window.timestart = Date.now();
 
     //nice way to know if processing started without pausing the timer
     function prepare() {
+        //used to sync timer later
+        ogtimer = document.getElementById("timer").innerHTML;
+        timestart = Date.now();
+
         //get cur drawer id (doing before because after suppress, drawing element disappears)
         curDrawID = parseInt(document.querySelector('.drawing[style*="display: block;"]').parentElement.parentElement.id.substring(6));
 
@@ -125,6 +131,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
         fakereceive('42["chat",{"id":-1,"message":"DONE DRAWING"}]');
         fakereceive('42["lobbyPlayerDisconnected",-1]')
         fakereceive('42["lobbyPlayerDrawing",' + curDrawID + ']');
+
+        //sync timer
+        let t = ogtimer - Math.ceil((Date.now() - timestart) / 1000);
+        if (t > 0) fakereceive('42["lobbyTime",' + t + ']');
     }
 
     //store images
