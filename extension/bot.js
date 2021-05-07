@@ -371,7 +371,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
             match = html && /\bsrc="?([^"\s]+)"?\s*/.exec(html),
             imageUrl = match && match[1];
         // imageUrl=imageUrl.replace(/(^\w+:|^)\/\//, '');
-        if (imageUrl) droppedimg.setAttribute('src', 'http://localhost:8080/' + imageUrl);
+        if (imageUrl) {
+            console.log("img dropped");
+            droppedimg.src = ('http://localhost:8080/' + imageUrl);
+        }
         // console.log(imageUrl); 
     }
     dropRegion.addEventListener('dragenter', preventDefault, false);
@@ -379,4 +382,20 @@ document.addEventListener('DOMContentLoaded', (event) => {
     dropRegion.addEventListener('dragover', preventDefault, false);
     dropRegion.addEventListener('drop', handleDrop, false);
 
+    dropRegion.onpaste = function(pasteEvent) {
+        var item = pasteEvent.clipboardData.items[0];
+        //console.log(item);
+        if (item.type.indexOf("image") === 0) //any image (but snipping tool gives png)
+        {
+            console.log("img pasted (MIME type:", item.type + ")");
+            var blob = item.getAsFile();
+
+            var reader = new FileReader();
+            reader.onload = function(event) {
+                droppedimg.src = event.target.result;
+            };
+
+            reader.readAsDataURL(blob);
+        }
+    }
 });
