@@ -27,29 +27,66 @@ function focussearch(update) {
         searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US");
     } else if (update) {
         searchwin.location.href = "https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US";
+        searchwin.focus();
     }
     // searchwin.moveTo(window.screenLeft, window.screenTop);
     // searchwin.resizeTo(window.outerWidth / 2, window.outerHeight);
-    searchwin.focus();
     //document.getElementById('droprgn').style.display = 'block';
 }
 
 //UI code (run after page load)
 document.addEventListener('DOMContentLoaded', (event) => {
     //test button (toggles search and droprgn)
-    var testbutton = document.createElement("Button");
-    testbutton.innerHTML = "fix";
+    var testbutton = document.createElement("button");
+    testbutton.innerHTML = "2.00";
     testbutton.style = "top:0;right:0;position:absolute;z-index:42000;height:50px";
     document.body.appendChild(testbutton);
     testbutton.addEventListener("click", function() {
         console.log('boop');
+        slider.value = 1;
+        testbutton.innerHTML = "2.00";
         focussearch(false);
     });
+
+    //slider for draw quality (changing psize)
+    //button shows current psize
+    window.qualitychange = function qualitychange(value) { testbutton.innerHTML = Math.pow(2, Number.parseFloat(value)).toFixed(2); };
+    //tick list (default: 4, another at 2)
+    var tick = document.createElement('datalist');
+    tick.id = "tick";
+    for (let ps = 1; ps <= 8; ps++) {
+        var o = document.createElement('option');
+        o.value = Math.log2(ps).toFixed(2);
+        tick.appendChild(o);
+    }
+    document.body.appendChild(tick);
+    //slider (psize = 2^val) (default val = 1, so psize = 2)
+    var slidiv = document.createElement("div");
+    slidiv.style = "background-color: white; display: block; position: absolute; z-index: 69; top: 69px; height: 22px; right: 0px; width: 50%;";
+    var slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = -1;
+    slider.max = 3; //log2 scale from psize 0.5 to 8
+    slider.step = 0.01;
+    slider.setAttribute("list", "tick");
+    slider.setAttribute("oninput", "qualitychange(value)");
+    slider.value = 1;
+    slider.style.display = 'block';
+    slider.style.position = 'absolute';
+    slider.style.zIndex = '6969';
+    slider.style.top = '72px';
+    slider.style.height = '10px'
+    slider.style.right = '0';
+    slider.style.width = '50%';
+    document.body.appendChild(slidiv);
+    document.body.appendChild(slider);
 
     //setting this lets us be able to search for active drawer with just display: block;
     document.querySelector("#gamePlayerDummy>.avatar>.drawing").setAttribute("style", "display:block");
 
     window.searchwin = window.open("https://www.google.com/search?q=" + curword + "&tbm=isch&tbs=itp:clipart&hl=en-US");
+
+    window.addEventListener("beforeunload", function(event) { searchwin.close() });
 
     //takes images
     var dropRegion = document.createElement('div');
@@ -172,7 +209,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                         drawpayload = '42["drawCommands",[';
                         temp = 0;
                     }
-                    drawpayload += '[2,' + c + ',' + (fx * psize) + ',' + (fy * psize) + '],';
+                    drawpayload += '[2,' + c + ',' + Math.round(fx * psize) + ',' + Math.round(fy * psize) + '],';
                     //drawpayload += '[0,' + c + ',6,' + (fx * psize) + ',' + (fy * psize) + ',' + (fx * psize) + ',' + (fy * psize) + '],';
                 }
             }
@@ -233,7 +270,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                         drawpayload = '42["drawCommands",[';
                         temp = 0;
                     }
-                    drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + nextx * psize + ',' + nexty * psize + '],';
+                    drawpayload += '[0,' + c + ',0,' + Math.round(x * psize) + ',' + Math.round(y * psize) + ',' + Math.round(nextx * psize) + ',' + Math.round(nexty * psize) + '],';
 
                     x = nextx;
                     y = nexty;
@@ -250,7 +287,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
                     drawpayload = '42["drawCommands",[';
                     temp = 0;
                 }
-                drawpayload += '[0,' + c + ',0,' + x * psize + ',' + y * psize + ',' + cont.data32S[0] * psize + ',' + cont.data32S[1] * psize + '],';
+                drawpayload += '[0,' + c + ',0,' + Math.round(x * psize) + ',' + Math.round(y * psize) + ',' + Math.round(cont.data32S[0] * psize) + ',' + Math.round(cont.data32S[1] * psize) + '],';
 
                 drawpayload = drawpayload.slice(0, -1);
                 drawpayload += ']]';
@@ -279,12 +316,12 @@ document.addEventListener('DOMContentLoaded', (event) => {
 
     function processimg() {
         //process image
-        //scale * psize <= 10 !!!!!
-        const scale = 5;
-        const psize = 2; //for drawing
+        //scale * psize = 10 for full canvas
+        const psize = Math.pow(2, Number.parseFloat(slider.value));
+        const scale = 10.0 / psize;
         const kernelsize = 5; //keep it odd
-        const MAX_WID = 80 * scale;
-        const MAX_HGT = 60 * scale;
+        const MAX_WID = Math.round(80 * scale);
+        const MAX_HGT = Math.round(60 * scale);
 
         var src = cv.imread(droppedimg);
 
@@ -331,9 +368,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
         }
 
         console.log("processing done");
-
-        //draw image
-        // const maxlen = 7;
+        console.log("drawing (psize:", psize.toFixed(2) + ")", "(imw x imh:", imw + " x", imh + ")");
 
         let k = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(kernelsize, kernelsize));
 
