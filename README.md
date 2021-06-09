@@ -10,4 +10,5 @@ current version is a chrome extension and uses game's websockets. it has built i
 
 sidenotes:
 - the img server folder is for a nodejs server running CORS anywhere so i can use more images
-- the bot uses contours to draw and the easiest way was using opencv which i've already used. so thats why theres a big opencv.js file.
+- the bot draws the contours and fills them, which is faster than drawing a bunch on lines like other bots
+- since it uses contours the easiest way was using opencv which i've already used. so thats why theres a big opencv.js file.
